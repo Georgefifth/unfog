@@ -1,3 +1,10 @@
+---
+title: Unfog
+emoji: 🌫️
+sdk: docker
+app_port: 7860
+---
+
 # 🌫️➡️ Unfog
 
 **Snap a photo of confusing paperwork. Get a plain-language explanation, the traps to watch for, and a ready-to-send action plan — in your own language.**
