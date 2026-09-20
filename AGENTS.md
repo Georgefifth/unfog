@@ -76,7 +76,25 @@ README.md            # Devpost 提交用主文档
 
 - [x] 比赛调研 + Featherless API 验证
 - [x] 主题确定：Unfog 文书解码器
-- [ ] 后端 analyze/chat/draft 接口
-- [ ] 前端单页（上传→结果卡片→追问/起草）
-- [ ] 示例文档生成
-- [ ] README + 演示脚本
+- [x] 后端 analyze/chat/draft 接口（SSE 流式、模型降级、`!` flood 过滤、UTF-8 编码修复）
+- [x] 前端单页（上传→结果卡片→追问/起草，支持拖拽/拍照/粘贴文本/示例图）
+- [x] 示例文档生成（4 张 PIL 仿真文书）
+- [x] README + git 初始化
+- [ ] 部署到公网（demo link 加分）或录 3 分钟演示视频
+- [ ] Devpost 提交页填写
+
+## 已验证的端到端结果
+
+- 罚单图 → 正确提取金额/截止日/翻倍罚款陷阱，suggested_actions 合理
+- 医疗账单 → 识别 facility fee 等条目，chat 能回答 "facility fee 能不能免"
+- 涨租通知（中文输出）→ 识别自动续租陷阱，urgency=high
+- 拒信 → 返回 appeal_letter 动作（已加入 spec）
+- 纯文本粘贴路径 OK
+- 已知上游怪癖：输出末尾偶发 `!` token 洪泛 → 已过滤；偶发 `capacity_exhausted` → 重试+降级
+
+## 提交要点（写 Devpost 页面时）
+
+- Problem: 医疗账单/罚单/租约/拒信看不懂 → 错过截止日期、多付钱、放弃申诉；移民/老人/学生最重
+- Solution: 拍照→结构化 JSON→大白话+红旗+清单+起草申诉信/电话脚本+追问，12 语言
+- Stack: Featherless AI（Qwen3-VL-30B 视觉 + Qwen2.5-72B 文本）、FastAPI、SSE、Vanilla JS
+- Innovation 论点: 不只是摘要——action layer 把"看懂"闭环到"搞定"；文档无关+多语言；grounded 引用真实金额/编号

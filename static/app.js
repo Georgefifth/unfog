@@ -110,10 +110,12 @@ async function analyze({ file, text }) {
 /* ---------- render result ---------- */
 const KIND_LABEL = {
   dispute_letter: "✉️ Draft a dispute letter",
+  appeal_letter: "✉️ Draft an appeal",
   reply_letter: "✉️ Draft a reply",
   phone_script: "📞 Phone call script",
   questions_to_ask: "❓ Questions to ask",
 };
+const kindLabel = (k) => KIND_LABEL[k] || `✉️ ${k.replace(/_/g, " ")}`;
 const URG = { low: ["urg-low", "Low urgency"], medium: ["urg-medium", "Needs attention"], high: ["urg-high", "Urgent"] };
 
 function renderResult(a) {
@@ -145,9 +147,9 @@ function renderResult(a) {
 
   renderChecklist(a.checklist || []);
 
-  const acts = (a.suggested_actions || []).filter(k => KIND_LABEL[k]);
+  const acts = (a.suggested_actions || []).slice(0, 4);
   $("#action-btns").innerHTML = acts.map(k =>
-    `<button class="btn secondary" data-kind="${k}">${KIND_LABEL[k]}</button>`).join("");
+    `<button class="btn secondary" data-kind="${k}">${kindLabel(k)}</button>`).join("");
   $("#draft-out").classList.add("hidden");
   $("#chat-log").innerHTML = "";
   $("#raw-text").textContent = a.raw_text || "(no text extracted)";
@@ -185,7 +187,7 @@ $("#action-btns").addEventListener("click", async (e) => {
   if (!btn || S.busy) return;
   const kind = btn.dataset.kind;
   const out = $("#draft-out"), body = $("#draft-body");
-  $("#draft-title").textContent = KIND_LABEL[kind];
+  $("#draft-title").textContent = kindLabel(kind);
   out.classList.remove("hidden");
   body.classList.add("streaming");
   body.textContent = "";
