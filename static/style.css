@@ -203,6 +203,50 @@ main { max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; }
 .h-title { display: block; font-size: 13.5px; font-weight: 600; }
 .h-ts { font-size: 11px; color: var(--muted); }
 
+/* doc preview + grounding boxes */
+.doc-wrap { display: flex; gap: 18px; align-items: flex-start; }
+.doc-main { flex: 1; min-width: 0; }
+.doc-view {
+  position: relative; width: 150px; flex-shrink: 0;
+  border-radius: 10px; overflow: hidden; box-shadow: var(--shadow);
+  align-self: stretch; max-height: 220px;
+}
+.doc-view img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#bbox-layer { position: absolute; inset: 0; pointer-events: none; }
+.bbox {
+  position: absolute; border: 1.5px solid rgba(79,70,229,.45);
+  background: rgba(79,70,229,.10); border-radius: 3px; transition: .15s;
+}
+.bbox.hot { border-color: var(--accent); background: rgba(79,70,229,.28); box-shadow: 0 0 0 2px rgba(79,70,229,.3); }
+[data-ref] { transition: background .15s; border-radius: 4px; }
+[data-ref]:hover { background: var(--accent-soft); }
+
+/* pdf placeholder in loader */
+.pdf-placeholder {
+  width: 180px; height: 220px; border-radius: 10px; background: var(--accent-soft);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 52px; box-shadow: var(--shadow);
+}
+.pdf-placeholder span { font-size: 11px; color: var(--muted); margin-top: 8px; padding: 0 10px; text-align: center; word-break: break-all; }
+
+/* refine form */
+.refine-form { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid #eee; background: #fafafe; }
+.refine-form input { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 7px 12px; font-size: 13.5px; }
+
+/* mic */
+.mic.rec { background: #fef2f2; border-color: var(--danger); color: var(--danger); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px rgba(185,28,28,.15); } }
+
+/* print: clean brief */
+@media print {
+  .topbar, footer, .chat-card, #new-doc-btn, .action-btns, .refine-form,
+  .mini-btn, #dropzone, .paste-box, .samples, .or-row, .raw-details { display: none !important; }
+  body { background: #fff; }
+  .card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+  #result-view.hidden { display: block !important; }
+  main { max-width: none; }
+}
+
 .flags-card { background: var(--warn-bg); }
 .flags { list-style: none; }
 .flags li { padding: 8px 0; font-size: 14.5px; border-bottom: 1px solid #fde8c8; }

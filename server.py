@@ -263,6 +263,8 @@ class DraftReq(BaseModel):
     context: dict
     kind: str = "reply_letter"
     language: str = "en"
+    refine: str = ""      # e.g. "make it shorter and firmer"
+    previous: str = ""    # previous draft text to revise
 
 
 @app.post("/api/draft")
@@ -270,6 +272,9 @@ def draft(req: DraftReq):
     lang = LANGUAGES.get(req.language, "English")
     ctx = json.dumps(req.context, ensure_ascii=False)[:14000]
     msgs = [{"role": "user", "content": draft_prompt(req.kind, lang).format(context=ctx)}]
+    if req.refine.strip() and req.previous.strip():
+        msgs += [{"role": "assistant", "content": req.previous[:6000]},
+                 {"role": "user", "content": f"Revise the draft: {req.refine.strip()[:500]}. Output only the revised draft, same language and format."}]
     return StreamingResponse(_stream(TEXT_MODELS, msgs, 2000, 0.5),
                              media_type="text/event-stream")
 

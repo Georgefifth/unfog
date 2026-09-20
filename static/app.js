@@ -1,6 +1,7 @@
 /* Unfog frontend */
 const $ = (s) => document.querySelector(s);
-const S = { context: null, messages: [], lastFiles: [], lastText: "", busy: false, mode: "qa", docId: null };
+const S = { context: null, messages: [], lastFiles: [], lastText: "", busy: false,
+            mode: "qa", docId: null, previewUrl: null, lastKind: "", lastDraft: "" };
 
 const VIEWS = { upload: $("#upload-view"), loading: $("#loading-view"), result: $("#result-view") };
 const lang = () => $("#lang").value;
@@ -68,10 +69,19 @@ async function streamPost(url, body, onDelta) {
 const LOAD_MSGS = ["Reading the document…", "Decoding the jargon…", "Hunting for deadlines…", "Checking for traps…", "Sniffing for scam signals…", "Writing your action plan…"];
 let loadTimer = null;
 
-function startLoading(previewUrl) {
+function startLoading(previewUrl, nfiles = 0, firstFile = null) {
   show("loading");
-  $("#preview-img").src = previewUrl || "";
-  $(".loader-img").style.display = previewUrl ? "" : "none";
+  const wrap = $(".loader-img");
+  if (previewUrl) {
+    wrap.innerHTML = `<img id="preview-img" alt="document preview">`;
+    $("#preview-img").src = previewUrl;
+    wrap.style.display = "";
+  } else if (firstFile) {
+    wrap.innerHTML = `<div class="pdf-placeholder">📄<span>${esc(firstFile.name)}${nfiles > 1 ? ` +${nfiles - 1} more` : ""}</span></div>`;
+    wrap.style.display = "";
+  } else {
+    wrap.style.display = "none";
+  }
   const t0 = Date.now();
   let i = 0;
   $("#loading-msg").textContent = LOAD_MSGS[0];
@@ -91,8 +101,8 @@ async function analyze({ files, text }) {
   if (S.busy) return;
   S.busy = true;
   const first = (files || [])[0];
-  const preview = first && first.type.startsWith("image/") ? URL.createObjectURL(first) : null;
-  startLoading(preview);
+  S.previewUrl = first && first.type.startsWith("image/") ? URL.createObjectURL(first) : null;
+  startLoading(S.previewUrl, files?.length || 0, first);
   try {
     const fd = new FormData();
     for (const f of files || []) fd.append("files", f, f.name || "doc.png");
@@ -101,6 +111,7 @@ async function analyze({ files, text }) {
     const res = await fetch("/api/analyze", { method: "POST", body: fd });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || "Analysis failed");
+    data._preview = S.previewUrl;
     S.context = data;
     S.messages = [];
     S.mode = "qa";
@@ -141,6 +152,27 @@ function renderResult(a) {
   $("#doc-title").textContent = a.title || "Your document";
   $("#doc-sender").textContent = a.sender ? `From: ${a.sender}` : "";
   $("#doc-eli5").textContent = a.eli5 || "";
+
+  // doc preview + grounding boxes (bbox normalized 0-1000)
+  const dv = $("#doc-view");
+  if (a._preview) {
+    dv.classList.remove("hidden");
+    $("#doc-thumb").src = a._preview;
+    const layer = $("#bbox-layer");
+    layer.innerHTML = "";
+    const boxed = [];
+    (a.key_facts || []).forEach((f, i) => { if (okBox(f.bbox)) boxed.push({ b: f.bbox, ref: `f${i}` }); });
+    (a.deadlines || []).forEach((d, i) => { if (okBox(d.bbox)) boxed.push({ b: d.bbox, ref: `d${i}` }); });
+    boxed.forEach(({ b, ref }) => {
+      const el = document.createElement("div");
+      el.className = "bbox";
+      el.dataset.ref = ref;
+      el.style.cssText = `left:${b[0] / 10}%;top:${b[1] / 10}%;width:${(b[2] - b[0]) / 10}%;height:${(b[3] - b[1]) / 10}%`;
+      layer.appendChild(el);
+    });
+  } else {
+    dv.classList.add("hidden");
+  }
   $("#doc-summary").textContent = a.summary || "";
 
   const lg = a.legitimacy || {};
@@ -156,13 +188,14 @@ function renderResult(a) {
   }
 
   const fl = $("#facts-list");
-  fl.innerHTML = (a.key_facts || []).map(f =>
-    `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join("") || "<dd>—</dd>";
+  fl.innerHTML = (a.key_facts || []).map((f, i) =>
+    `<dt data-ref="f${i}">${esc(f.label)}</dt><dd data-ref="f${i}">${esc(f.value)}</dd>`)
+    .join("") || "<dd>—</dd>";
 
   const dl = $("#deadlines-list");
   dl.innerHTML = (a.deadlines || []).map((d, i) => {
     const chip = daysChip(d.date);
-    return `<li>
+    return `<li data-ref="d${i}">
       <div class="d-top">
         <span class="d-date">${esc(d.date || "ASAP")}</span>${chip}
         ${d.date ? `<button class="mini-btn cal-btn" data-dl="${i}" title="Add to calendar">📅</button>` : ""}
@@ -172,6 +205,16 @@ function renderResult(a) {
     </li>`;
   }).join("");
   $("#deadlines-card").style.display = (a.deadlines || []).length ? "" : "none";
+
+  // hover a fact/deadline → flash its bbox on the document
+  document.querySelectorAll("[data-ref]").forEach(el => {
+    el.addEventListener("mouseenter", () => {
+      document.querySelectorAll(".bbox").forEach(b =>
+        b.classList.toggle("hot", b.dataset.ref === el.dataset.ref));
+    });
+    el.addEventListener("mouseleave", () =>
+      document.querySelectorAll(".bbox").forEach(b => b.classList.remove("hot")));
+  });
 
   const gf = $("#flags-list");
   gf.innerHTML = (a.red_flags || []).map(f =>
@@ -191,6 +234,9 @@ function renderResult(a) {
 function esc(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+const okBox = (b) => Array.isArray(b) && b.length === 4 && b.every(n => typeof n === "number")
+  && b[2] > b[0] && b[3] > b[1] && b.every(n => n >= 0 && n <= 1000);
 
 function renderChecklist(items) {
   const saved = loadChecks();
@@ -348,26 +394,66 @@ function setRoleplay(on) {
   }
 }
 $("#roleplay-btn").addEventListener("click", () => setRoleplay(true));
-$("#roleplay-exit").addEventListener("click", () => setRoleplay(false));
+$("#roleplay-exit").addEventListener("click", () => { speechSynthesis.cancel(); setRoleplay(false); });
+
+/* ---------- voice ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, recOn = false;
+if (!SR) {
+  $("#mic-btn").style.display = "none";
+} else {
+  rec = new SR();
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  rec.onresult = (e) => {
+    const t = e.results[0][0].transcript;
+    if (S.mode === "roleplay") { sendChat(t, false); }
+    else { $("#chat-input").value = t; }
+  };
+  rec.onend = () => { recOn = false; $("#mic-btn").classList.remove("rec"); };
+  rec.onerror = () => { recOn = false; $("#mic-btn").classList.remove("rec"); };
+}
+$("#mic-btn").addEventListener("click", () => {
+  if (!rec) return;
+  if (recOn) { rec.stop(); return; }
+  rec.lang = ({ en: "en-US", zh: "zh-CN", ja: "ja-JP", ko: "ko-KR", es: "es-ES",
+                fr: "fr-FR", pt: "pt-BR", hi: "hi-IN", ar: "ar-SA", vi: "vi-VN",
+                de: "de-DE", ru: "ru-RU" })[lang()] || "en-US";
+  try { rec.start(); recOn = true; $("#mic-btn").classList.add("rec"); }
+  catch { /* already started */ }
+});
+
+function speak(text) {
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.replace(/[*#_`]/g, ""));
+  u.lang = ({ en: "en-US", zh: "zh-CN", ja: "ja-JP", ko: "ko-KR", es: "es-ES",
+              fr: "fr-FR", pt: "pt-BR", hi: "hi-IN", ar: "ar-SA", vi: "vi-VN",
+              de: "de-DE", ru: "ru-RU" })[lang()] || "en-US";
+  const vs = speechSynthesis.getVoices().find(v => v.lang.startsWith(u.lang.slice(0, 2)));
+  if (vs) u.voice = vs;
+  speechSynthesis.speak(u);
+}
 
 /* ---------- draft (SSE) ---------- */
-$("#action-btns").addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-kind]");
-  if (!btn || S.busy) return;
-  const kind = btn.dataset.kind;
+async function runDraft(kind, refine = "") {
   const out = $("#draft-out"), body = $("#draft-body");
-  $("#draft-title").textContent = kindLabel(kind);
+  $("#draft-title").textContent = kindLabel(kind) + (refine ? " · revised" : "");
   out.classList.remove("hidden");
   body.classList.add("streaming");
   body.textContent = "";
   let acc = "";
   try {
     S.busy = true;
-    await streamPost("/api/draft", { context: S.context, kind, language: lang() }, (d) => {
+    await streamPost("/api/draft", {
+      context: S.context, kind, language: lang(),
+      refine, previous: refine ? S.lastDraft : "",
+    }, (d) => {
       acc += d;
       body.innerHTML = md(acc);
       out.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
+    S.lastKind = kind;
+    S.lastDraft = acc;
   } catch (e2) {
     acc += `\n\n⚠ ${e2.message}`;
     body.innerHTML = md(acc);
@@ -375,6 +461,19 @@ $("#action-btns").addEventListener("click", async (e) => {
     body.classList.remove("streaming");
     S.busy = false;
   }
+}
+
+$("#action-btns").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-kind]");
+  if (btn && !S.busy) runDraft(btn.dataset.kind);
+});
+
+$("#refine-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const v = $("#refine-input").value.trim();
+  if (!v || S.busy || !S.lastKind) return;
+  $("#refine-input").value = "";
+  runDraft(S.lastKind, v);
 });
 
 $("#copy-draft").addEventListener("click", () => {
@@ -412,6 +511,7 @@ async function sendChat(q, hidden) {
       bub.parentElement.scrollIntoView({ block: "nearest" });
     });
     S.messages.push({ role: "assistant", content: acc });
+    if (S.mode === "roleplay" && acc) speak(acc);
   } catch (e) {
     bub.innerHTML = md(acc + `\n\n⚠ ${e.message}`);
   } finally {
@@ -476,7 +576,4 @@ $("#new-doc-btn").addEventListener("click", () => {
   show("upload");
 });
 
-$("#speak-btn").addEventListener("click", () => {
-  const u = new SpeechSynthesisUtterance($("#doc-summary").textContent);
-  speechSynthesis.speak(u);
-});
+$("#speak-btn").addEventListener("click", () => speak($("#doc-summary").textContent));

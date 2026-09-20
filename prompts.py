@@ -8,8 +8,8 @@ ANALYZE_SCHEMA = """{
   "urgency_reason": "one sentence why",
   "summary": "2-4 sentences in plain everyday language: what this document actually says and what it means for the reader",
   "eli5": "one single sentence, explain like the reader is 10 years old",
-  "key_facts": [{"label": "Amount due", "value": "$85.00"}],
-  "deadlines": [{"date": "YYYY-MM-DD or null if unclear", "what": "Pay or contest", "consequence": "what happens if missed"}],
+  "key_facts": [{"label": "Amount due", "value": "$85.00", "bbox": [x1,y1,x2,y2] or null}],
+  "deadlines": [{"date": "YYYY-MM-DD or null if unclear", "what": "Pay or contest", "consequence": "what happens if missed", "bbox": [x1,y1,x2,y2] or null}],
   "red_flags": [{"flag": "short title", "why": "why it matters"}],
   "legitimacy": {"verdict": "likely_legit | suspicious | unclear",
                  "signals": ["one signal per line — e.g. 'official letterhead and verifiable reference number' or 'demands payment via gift cards'"]},
@@ -28,8 +28,8 @@ Analyze this document image (or text) and reply with ONLY a single valid JSON ob
 Rules:
 - Write ALL free-text values (summary, eli5, labels, steps, flags, reasons) in {language}.
 - Keep JSON keys and enum values exactly as shown (English).
-- key_facts: extract 4-10 facts a normal person cares about (amounts, dates, account/case numbers, names).
-- deadlines: every date that requires action. If the document states a relative deadline ("within 30 days"), compute the date from any date visible in the document, else use null.
+- key_facts: extract 4-10 facts a normal person cares about (amounts, dates, account/case numbers, names). Include "bbox" = bounding box [x1,y1,x2,y2] normalized to 0-1000 of where that fact's text appears in the (first) image — null for text input or if unsure.
+- deadlines: every date that requires action. If the document states a relative deadline ("within 30 days"), compute the date from any date visible in the document, else use null. Include "bbox" like key_facts when the deadline text is visible in the image.
 - red_flags: hidden fees, penalties, auto-renewals, rights being waived, suspicious charges, missing info. Empty list if none. Do not invent problems.
 - legitimacy: assess whether this looks like a genuine document vs a scam/phishing attempt. Signals to check: demands for gift cards/crypto/wire transfers, threats of immediate arrest, misspellings, generic greetings, unofficial domains/phone numbers, pressure to act "NOW", missing verifiable reference numbers. Real documents get "likely_legit" with the reassuring signals listed.
 - checklist: 3-8 concrete, ordered actions the reader should take, most important first.

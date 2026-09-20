@@ -95,13 +95,21 @@
     <button id="new-doc-btn" class="btn ghost">← New document</button>
 
     <div class="doc-head card">
-      <div class="doc-badges">
-        <span id="doc-type" class="badge type"></span>
-        <span id="doc-urgency" class="badge"></span>
+      <div class="doc-wrap">
+        <div class="doc-view hidden" id="doc-view">
+          <img id="doc-thumb" alt="uploaded document">
+          <div id="bbox-layer"></div>
+        </div>
+        <div class="doc-main">
+          <div class="doc-badges">
+            <span id="doc-type" class="badge type"></span>
+            <span id="doc-urgency" class="badge"></span>
+          </div>
+          <h2 id="doc-title"></h2>
+          <div id="doc-sender" class="doc-sender"></div>
+          <div id="doc-eli5" class="eli5"></div>
+        </div>
       </div>
-      <h2 id="doc-title"></h2>
-      <div id="doc-sender" class="doc-sender"></div>
-      <div id="doc-eli5" class="eli5"></div>
     </div>
 
     <div class="card legit-card hidden" id="legit-card">
@@ -152,6 +160,10 @@
           <button id="copy-draft" class="mini-btn">📋 Copy</button>
         </div>
         <div id="draft-body" class="draft-body md"></div>
+        <form id="refine-form" class="refine-form">
+          <input id="refine-input" placeholder="Refine it — e.g. “shorter”, “firmer”, “add my account number”" autocomplete="off">
+          <button class="mini-btn" type="submit">Refine</button>
+        </form>
       </div>
     </div>
 
@@ -167,6 +179,7 @@
       <div id="chat-log" class="chat-log"></div>
       <form id="chat-form" class="chat-form">
         <input id="chat-input" placeholder="e.g. What happens if I just ignore this?" autocomplete="off">
+        <button type="button" id="mic-btn" class="mini-btn mic" title="Voice input">🎤</button>
         <button class="btn" type="submit">Ask</button>
       </form>
       <div class="chips-row" id="ask-chips">
