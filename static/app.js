@@ -506,6 +506,13 @@ async function sendChat(q, hidden) {
   if (!q.trim() || S.busy || !S.context) return;
   S.messages.push({ role: "user", content: q });
   if (!hidden) addMsg("user", q);
+  // demo mode: pre-baked first rep greeting so the call starts instantly
+  if (S.mode === "roleplay" && S.demoGreeting
+      && !S.messages.some(m => m.role === "assistant")) {
+    addMsg("bot", S.demoGreeting);
+    S.messages.push({ role: "assistant", content: S.demoGreeting });
+    return;
+  }
   const bub = addMsg("bot", "");
   bub.classList.add("streaming");
   let acc = "";
@@ -626,6 +633,8 @@ if (demoKey && DEMO_MAP[demoKey]) {
       S.previewUrl = URL.createObjectURL(img);
       a._preview = S.previewUrl;
       S.context = a;
+      fetch(`/static/demo_cache/${demoKey}_rp.json`).then(r => r.json())
+        .then(rp => { S.demoGreeting = rp.greeting || null; }).catch(() => {});
       renderResult(a);
       show("result");
     } catch (e) { /* fall back to normal upload view */ }

@@ -82,7 +82,10 @@ README.md            # Devpost 提交用主文档
 - [x] 示例文档生成（4 张 PIL 仿真文书）
 - [x] README + git 初始化
 - [x] 迭代 2：legitimacy 防骗卡、多文件+PDF(PyMuPDF)、截止倒计时+ICS 导出、🎭 电话彩排 roleplay、localStorage 历史+清单记忆、导出 md 简报、loading 秒表
-- [ ] 部署到公网（demo link 加分）或录 3 分钟演示视频
+- [x] 迭代 3：VL bbox grounding 高亮、🎤 语音输入+roleplay 朗读、草稿 refine、打印样式
+- [x] 迭代 4：清单"怎么做"→chat、情境追问 chips、可编辑识别文本重跑
+- [x] 部署：**Render** https://unfog-oaye.onrender.com（free plan，`render services` CLI 管理，GitHub push 自动部署）；repo: github.com/Georgefifth/unfog；HF Spaces 需要 PRO 已放弃
+- [x] 演示视频：`video/scenes.js`（demo-recorder 管线，`?demo=` 模式秒开缓存分析）→ `video/out/demo.mp4` ~84s
 - [ ] Devpost 提交页填写
 
 ## 已验证的端到端结果

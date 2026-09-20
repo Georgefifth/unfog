@@ -9,6 +9,7 @@ import time
 import pymupdf
 import requests
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -226,17 +227,23 @@ async def analyze(files: list[UploadFile] = File(None), text: str = Form(""),
     else:
         return JSONResponse({"error": "Provide an image, PDF, or some text"}, 400)
 
-    last = None
-    for _ in range(2):  # retry once: JSON parse can fail if output floods/truncates
-        try:
-            out, model = complete(VISION_MODELS, [{"role": "user", "content": content}],
-                                  max_tokens=3000, temperature=0.2)
-            result = _extract_json(out)
-            result["_model"] = model
-            return result
-        except Exception as e:
-            last = e
-    return JSONResponse({"error": f"Analysis failed: {last}"}, 502)
+    def _run():
+        last = None
+        for _ in range(2):  # retry once: JSON parse can fail if output floods/truncates
+            try:
+                out, model = complete(VISION_MODELS, [{"role": "user", "content": content}],
+                                      max_tokens=3000, temperature=0.2)
+                result = _extract_json(out)
+                result["_model"] = model
+                return result
+            except Exception as e:
+                last = e
+        raise LLMError(str(last))
+
+    try:
+        return await run_in_threadpool(_run)  # blocking HTTP off the event loop
+    except Exception as e:
+        return JSONResponse({"error": f"Analysis failed: {e}"}, 502)
 
 
 class ChatReq(BaseModel):

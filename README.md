@@ -9,6 +9,9 @@ app_port: 7860
 
 **Snap a photo of confusing paperwork. Get a plain-language explanation, the traps to watch for, and a ready-to-send action plan — in your own language.**
 
+**▶ Live demo: https://unfog-oaye.onrender.com** · Code: `github.com/Georgefifth/unfog`
+*(Render free tier — first load may take ~30s to wake)*
+
 Built for the [BunnieX Hackathon](https://buuniex-hackathon.devpost.com/).
 
 ---
@@ -53,6 +56,10 @@ python3 server.py                  # → http://localhost:8000
 ```
 
 Try it instantly with the built-in samples: parking ticket, medical bill, rent-increase notice, insurance denial — or photograph any real mail.
+
+**Deploy:** any Python host works — Render: build `pip install -r requirements.txt`, start `python3 server.py`, env `FEATHERLESS_API_KEY` (the server honors `PORT`). A `Dockerfile` is included for container platforms.
+
+**Demo video:** `video/scenes.js` is authored for the `demo-recorder` pipeline (`node record-demo.js video/scenes.js`). `?demo=bill` loads an instant cached analysis for recordings.
 
 ## How it works
 
