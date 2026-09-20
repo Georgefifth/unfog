@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unfog — Understand any document in seconds</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌫️</text></svg>">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 48 48" width="34" height="34" aria-hidden="true">
+      <rect x="10" y="4" width="28" height="40" rx="4" fill="#eef2ff" stroke="#4f46e5" stroke-width="2.5"/>
+      <line x1="17" y1="14" x2="31" y2="14" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" opacity=".35"/>
+      <line x1="17" y1="21" x2="31" y2="21" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" opacity=".35"/>
+      <line x1="17" y1="28" x2="26" y2="28" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" opacity=".35"/>
+      <circle cx="33" cy="33" r="11" fill="#fde68a" stroke="#f59e0b" stroke-width="2.5"/>
+      <line x1="33" y1="27" x2="33" y2="39" stroke="#f59e0b" stroke-width="2" opacity="0"/>
+    </svg>
+    <div>
+      <div class="brand-name">Unfog</div>
+      <div class="brand-sub">paperwork → clarity → action</div>
+    </div>
+  </div>
+  <div class="top-right">
+    <label class="lang-label" for="lang">Explain in</label>
+    <select id="lang">
+      <option value="en" selected>English</option>
+      <option value="zh">中文</option>
+      <option value="ja">日本語</option>
+      <option value="ko">한국어</option>
+      <option value="es">Español</option>
+      <option value="fr">Français</option>
+      <option value="pt">Português</option>
+      <option value="hi">हिन्दी</option>
+      <option value="ar">العربية</option>
+      <option value="vi">Tiếng Việt</option>
+      <option value="de">Deutsch</option>
+      <option value="ru">Русский</option>
+    </select>
+  </div>
+</header>
+
+<main>
+  <!-- ============ UPLOAD VIEW ============ -->
+  <section id="upload-view" class="view">
+    <div class="hero">
+      <h1>That scary letter,<br>explained in <span class="hl">10 seconds</span>.</h1>
+      <p class="lede">Snap a photo of a medical bill, ticket, lease, or any confusing
+      paperwork. Unfog tells you what it actually says, what to watch out for,
+      and exactly what to do next.</p>
+    </div>
+
+    <div id="dropzone" tabindex="0" role="button" aria-label="Upload a document image">
+      <div class="dz-icon">📄</div>
+      <div class="dz-main">Drop a photo of the document</div>
+      <div class="dz-sub">or click to browse — phone photos work great</div>
+      <input type="file" id="file-input" accept="image/*" hidden>
+    </div>
+
+    <div class="or-row"><span>or</span></div>
+
+    <div class="paste-box">
+      <textarea id="paste-text" placeholder="Paste the document text here instead…" rows="3"></textarea>
+      <button id="paste-btn" class="btn secondary">Analyze text</button>
+    </div>
+
+    <div class="samples">
+      <span class="samples-label">No document handy? Try one:</span>
+      <div class="sample-chips">
+        <button class="chip" data-sample="parking_ticket.png">🅿️ Parking ticket</button>
+        <button class="chip" data-sample="medical_bill.png">🏥 Medical bill</button>
+        <button class="chip" data-sample="rent_notice.png">🏠 Rent increase</button>
+        <button class="chip" data-sample="denial_letter.png">🛡️ Denied claim</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOADING VIEW ============ -->
+  <section id="loading-view" class="view hidden">
+    <div class="loader">
+      <div class="loader-img"><img id="preview-img" alt="document preview"></div>
+      <div class="loader-info">
+        <div class="spinner"></div>
+        <div id="loading-msg" class="loading-msg">Reading the document…</div>
+        <div class="loading-hint">Vision AI usually takes 5–30 seconds</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESULT VIEW ============ -->
+  <section id="result-view" class="view hidden">
+    <button id="new-doc-btn" class="btn ghost">← New document</button>
+
+    <div class="doc-head card">
+      <div class="doc-badges">
+        <span id="doc-type" class="badge type"></span>
+        <span id="doc-urgency" class="badge"></span>
+      </div>
+      <h2 id="doc-title"></h2>
+      <div id="doc-sender" class="doc-sender"></div>
+      <div id="doc-eli5" class="eli5"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>📖 In plain words</h3>
+        <button id="speak-btn" class="mini-btn" title="Read aloud">🔊</button>
+      </div>
+      <p id="doc-summary" class="summary"></p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card" id="facts-card">
+        <h3>🔑 Key facts</h3>
+        <dl id="facts-list" class="facts"></dl>
+      </div>
+      <div class="card" id="deadlines-card">
+        <h3>⏰ Deadlines</h3>
+        <ul id="deadlines-list" class="deadlines"></ul>
+      </div>
+    </div>
+
+    <div class="card flags-card hidden" id="flags-card">
+      <h3>⚠️ Watch out</h3>
+      <ul id="flags-list" class="flags"></ul>
+    </div>
+
+    <div class="card">
+      <h3>✅ What to do next</h3>
+      <div class="progress"><div id="check-progress" class="progress-bar"></div></div>
+      <ul id="checklist" class="checklist"></ul>
+    </div>
+
+    <div class="card">
+      <h3>✍️ Take action</h3>
+      <div id="action-btns" class="action-btns"></div>
+      <div id="draft-out" class="draft-out hidden">
+        <div class="draft-head">
+          <span id="draft-title"></span>
+          <button id="copy-draft" class="mini-btn">📋 Copy</button>
+        </div>
+        <div id="draft-body" class="draft-body md"></div>
+      </div>
+    </div>
+
+    <div class="card chat-card">
+      <h3>💬 Ask about this document</h3>
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" placeholder="e.g. What happens if I just ignore this?" autocomplete="off">
+        <button class="btn" type="submit">Ask</button>
+      </form>
+      <div class="chips-row" id="ask-chips">
+        <button class="chip small" data-q="What happens if I ignore this?">What if I ignore it?</button>
+        <button class="chip small" data-q="Is this a scam or legitimate?">Is this a scam?</button>
+        <button class="chip small" data-q="Can I negotiate or reduce the amount?">Can I pay less?</button>
+      </div>
+    </div>
+
+    <details class="raw-details">
+      <summary>Show extracted text</summary>
+      <pre id="raw-text"></pre>
+    </details>
+  </section>
+
+  <div id="error-banner" class="error-banner hidden"></div>
+</main>
+
+<footer>
+  <p>Unfog helps you read documents — it is not legal, medical, or financial advice.
+  Your documents are analyzed in memory only and never stored.</p>
+  <p class="foot-sub">Built for BunnieX Hackathon · Powered by Featherless AI open models</p>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
