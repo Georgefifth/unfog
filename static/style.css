@@ -296,9 +296,14 @@ main { max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; }
 
 /* misc */
 .raw-details { margin-top: 8px; color: var(--muted); font-size: 13px; }
-.raw-details pre {
-  white-space: pre-wrap; background: #fff; padding: 14px; border-radius: 10px;
-  margin-top: 8px; font-size: 12.5px; max-height: 300px; overflow: auto;
+.raw-edit {
+  width: 100%; margin-top: 8px; font-size: 12.5px; font-family: ui-monospace, monospace;
+  border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fff;
+}
+.checklist .how-btn { margin-left: auto; flex-shrink: 0; align-self: flex-start; }
+@media (max-width: 560px) {
+  .doc-wrap { flex-direction: column; }
+  .doc-view { width: 100%; max-height: 200px; }
 }
 .error-banner {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);

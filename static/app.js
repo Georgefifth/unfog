@@ -228,7 +228,7 @@ function renderResult(a) {
     `<button class="btn secondary" data-kind="${k}">${kindLabel(k)}</button>`).join("");
   $("#draft-out").classList.add("hidden");
   $("#chat-log").innerHTML = "";
-  $("#raw-text").textContent = a.raw_text || "(no text extracted)";
+  $("#raw-text").value = a.raw_text || "";
 }
 
 function esc(s) {
@@ -247,7 +247,14 @@ function renderChecklist(items) {
       <label for="ck${i}" class="step-text">${esc(it.step)}
         ${it.detail ? `<span class="step-detail">${esc(it.detail)}</span>` : ""}
       </label>
+      <button class="mini-btn how-btn" data-step="${i}" title="How do I do this?">💬</button>
     </li>`).join("");
+  ul.querySelectorAll(".how-btn").forEach(b => b.addEventListener("click", () => {
+    const step = items[+b.dataset.step];
+    setRoleplay(false);
+    sendChat(`How exactly do I do this step: "${step.step}${step.detail ? " — " + step.detail : ""}"? Walk me through it.`, false);
+    $(".chat-card").scrollIntoView({ behavior: "smooth" });
+  }));
   updateProgress();
   ul.querySelectorAll("input").forEach(cb => cb.addEventListener("change", () => {
     cb.closest("li").classList.toggle("done", cb.checked);
@@ -383,12 +390,13 @@ function saveChecks() {
 
 /* ---------- roleplay ---------- */
 function setRoleplay(on) {
-  S.mode = on ? "roleplay" : "qa";
+  const target = on ? "roleplay" : "qa";
+  const changed = S.mode !== target;
+  S.mode = target;
   $("#roleplay-banner").classList.toggle("hidden", !on);
   $("#chat-title").textContent = on ? "🎭 Practice call" : "💬 Ask about this document";
-  $("#chat-log").innerHTML = "";
-  S.messages = [];
-  if (on) {
+  if (changed) { $("#chat-log").innerHTML = ""; S.messages = []; }
+  if (on && changed) {
     $("#rp-org").textContent = S.context?.sender || "the organization";
     sendChat("(the phone rings — the rep picks up)", true);
   }
@@ -512,6 +520,7 @@ async function sendChat(q, hidden) {
     });
     S.messages.push({ role: "assistant", content: acc });
     if (S.mode === "roleplay" && acc) speak(acc);
+    else renderFollowups();
   } catch (e) {
     bub.innerHTML = md(acc + `\n\n⚠ ${e.message}`);
   } finally {
@@ -520,6 +529,24 @@ async function sendChat(q, hidden) {
   }
 }
 const ask = (q) => sendChat(q, false);
+
+/* contextual follow-up suggestions after each answer */
+const FOLLOWUPS = {
+  medical_bill: ["Is every charge here legit?", "How do I ask for an itemized bill?", "What if I can't afford this?"],
+  parking_ticket: ["What's my best excuse to contest?", "How do I prove the meter was broken?", "Will this affect my license?"],
+  lease: ["Is this increase even legal?", "Can I negotiate?", "What are my rights here?"],
+  rent: ["Is this increase even legal?", "Can I negotiate?", "What are my rights here?"],
+  insurance: ["How strong is my appeal case?", "What evidence should I attach?", "Can my doctor appeal for me?"],
+  rejection_letter: ["How strong is my appeal case?", "What evidence should I attach?"],
+};
+function renderFollowups() {
+  if (S.mode !== "qa") return;
+  const dt = (S.context?.doc_type || "other");
+  const qs = FOLLOWUPS[dt] || FOLLOWUPS[Object.keys(FOLLOWUPS).find(k => dt.includes(k))] ||
+    ["What should I do first?", "What's the worst that can happen?", "Who can help me with this?"];
+  const row = $("#ask-chips");
+  row.innerHTML = qs.map(q => `<button class="chip small" data-q="${esc(q)}">${esc(q)}</button>`).join("");
+}
 
 $("#chat-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -568,6 +595,13 @@ $("#lang").addEventListener("change", () => {
     if (S.lastFiles.length) analyze({ files: S.lastFiles });
     else if (S.lastText) analyze({ text: S.lastText });
   }
+});
+
+$("#rerun-text").addEventListener("click", () => {
+  const t = $("#raw-text").value.trim();
+  if (!t || S.busy) return;
+  S.lastText = t; S.lastFiles = []; S.previewUrl = null;
+  analyze({ text: t });
 });
 
 $("#new-doc-btn").addEventListener("click", () => {
