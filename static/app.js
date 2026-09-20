@@ -611,3 +611,23 @@ $("#new-doc-btn").addEventListener("click", () => {
 });
 
 $("#speak-btn").addEventListener("click", () => speak($("#doc-summary").textContent));
+
+/* ---------- demo mode: ?demo=bill|ticket|rent|denial — instant cached result ---------- */
+const DEMO_MAP = { bill: "medical_bill.png", ticket: "parking_ticket.png",
+                   rent: "rent_notice.png", denial: "denial_letter.png" };
+const demoKey = new URLSearchParams(location.search).get("demo");
+if (demoKey && DEMO_MAP[demoKey]) {
+  (async () => {
+    try {
+      const [a, img] = await Promise.all([
+        fetch(`/static/demo_cache/${demoKey}.json`).then(r => r.json()),
+        fetch(`/static/samples/${DEMO_MAP[demoKey]}`).then(r => r.blob()),
+      ]);
+      S.previewUrl = URL.createObjectURL(img);
+      a._preview = S.previewUrl;
+      S.context = a;
+      renderResult(a);
+      show("result");
+    } catch (e) { /* fall back to normal upload view */ }
+  })();
+}
