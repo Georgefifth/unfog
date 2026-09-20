@@ -1,0 +1,60 @@
+<!DOCTYPE html><html><head><style>body{margin:0}</style></head><body>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C74F0"/>
+    </linearGradient>
+    <linearGradient id="docgrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F2F1FA"/>
+    </linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="22"/></filter>
+    <filter id="soft2"><feGaussianBlur stdDeviation="14"/></filter>
+  </defs>
+
+  <!-- app-icon rounded square -->
+  <rect width="1024" height="1024" rx="200" fill="url(#bg)"/>
+
+  <!-- faint fog wisps in background -->
+  <g filter="url(#soft2)" fill="#FFFFFF" opacity=".28">
+    <ellipse cx="230" cy="300" rx="200" ry="46"/>
+    <ellipse cx="800" cy="380" rx="190" ry="42"/>
+    <ellipse cx="512" cy="180" rx="240" ry="40"/>
+  </g>
+
+  <!-- document card, slightly tilted, emerging -->
+  <g transform="rotate(-5 512 480)">
+    <rect x="322" y="215" width="380" height="520" rx="30" fill="url(#docgrad)"
+          stroke="#DDD9F5" stroke-width="3"/>
+    <!-- title bar -->
+    <rect x="372" y="278" width="190" height="30" rx="15" fill="#4F46E5"/>
+    <!-- text lines -->
+    <rect x="372" y="345" width="280" height="20" rx="10" fill="#C9C6EC"/>
+    <rect x="372" y="392" width="280" height="20" rx="10" fill="#C9C6EC"/>
+    <rect x="372" y="439" width="210" height="20" rx="10" fill="#C9C6EC"/>
+    <!-- highlighted "amount" line -->
+    <rect x="372" y="505" width="280" height="42" rx="12" fill="#FEF3C7"/>
+    <rect x="388" y="519" width="120" height="15" rx="7" fill="#D97706" opacity=".8"/>
+    <!-- bottom lines fading into fog -->
+    <rect x="372" y="585" width="250" height="18" rx="9" fill="#DDD9F5"/>
+    <rect x="372" y="628" width="180" height="18" rx="9" fill="#E7E4F8"/>
+  </g>
+
+  <!-- check badge -->
+  <circle cx="726" cy="300" r="86" fill="#10B981" stroke="#FAF9F6" stroke-width="14"/>
+  <path d="M682 302 l30 32 l62 -66" stroke="#fff" stroke-width="20" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- foreground fog banks, dissolving off the doc -->
+  <g filter="url(#soft)" fill="#FAF9F6" opacity=".92">
+    <ellipse cx="180" cy="880" rx="360" ry="110"/>
+    <ellipse cx="850" cy="910" rx="380" ry="120"/>
+    <ellipse cx="512" cy="985" rx="460" ry="110"/>
+  </g>
+  <g filter="url(#soft)" fill="#FFFFFF" opacity=".55">
+    <ellipse cx="300" cy="800" rx="220" ry="55"/>
+    <ellipse cx="740" cy="820" rx="240" ry="60"/>
+  </g>
+</svg>
+</body></html>

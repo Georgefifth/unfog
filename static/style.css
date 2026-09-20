@@ -324,3 +324,5 @@ footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24
 .md ul, .md ol { margin: 8px 0 8px 22px; }
 .md li { margin: 4px 0; }
 .md strong { font-weight: 700; }
+
+.logo { border-radius: 8px; display: block; }
