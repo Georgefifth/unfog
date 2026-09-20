@@ -6,6 +6,7 @@ import os
 import re
 import time
 
+import pymupdf
 import requests
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -13,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel
 
-from prompts import analyze_prompt, chat_system, draft_prompt
+from prompts import analyze_prompt, chat_system, draft_prompt, roleplay_system
 
 BASE_URL = "https://api.featherless.ai/v1"
 API_KEY = os.environ.get("FEATHERLESS_API_KEY", "")
@@ -25,7 +26,8 @@ HEADERS = {
 }
 
 VISION_MODELS = ["Qwen/Qwen3-VL-30B-A3B-Instruct", "Qwen/Qwen2.5-VL-72B-Instruct"]
-TEXT_MODELS = ["Qwen/Qwen2.5-72B-Instruct", "Qwen/Qwen3-32B"]
+TEXT_MODELS = ["Qwen/Qwen2.5-72B-Instruct", "Qwen/Qwen3-32B",
+               "mistralai/Mistral-Small-3.2-24B-Instruct-2506"]
 
 LANGUAGES = {
     "en": "English", "zh": "Simplified Chinese", "ja": "Japanese", "ko": "Korean",
@@ -85,10 +87,11 @@ def complete(model_list, messages, max_tokens=1200, temperature=0.4):
             r = _post({
                 "model": model, "messages": _no_think(model, messages),
                 "max_tokens": max_tokens, "temperature": temperature,
-                "chat_template_kwargs": {"enable_thinking": False},
             })
-            text = r.json()["choices"][0]["message"]["content"] or ""
-            return _strip_think(text), model
+            text = _strip_think(r.json()["choices"][0]["message"]["content"] or "")
+            if not text:
+                raise LLMError("empty output (upstream flood)")  # try next model
+            return text, model
         except Exception as e:
             last = e
     raise LLMError(f"all models failed: {last}")
@@ -108,6 +111,15 @@ def _prep_image(data: bytes) -> str:
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=88)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _to_images(filename: str, data: bytes, max_imgs: int = 3) -> list:
+    """Turn an upload into <=max_imgs image data-URLs (handles PDF pages)."""
+    if filename.lower().endswith(".pdf") or data[:5] == b"%PDF-":
+        doc = pymupdf.open(stream=data, filetype="pdf")
+        return [_prep_image(p.get_pixmap(dpi=140).tobytes("png"))
+                for p in doc.pages()][:max_imgs]
+    return [_prep_image(data)]
 
 
 def _sse(obj) -> str:
@@ -132,10 +144,9 @@ def _stream(model_list, messages, max_tokens, temperature):
                 "model": model, "messages": _no_think(model, messages),
                 "max_tokens": max_tokens, "temperature": temperature,
                 "stream": True,
-                "chat_template_kwargs": {"enable_thinking": False},
             }, stream=True)
             r.encoding = "utf-8"  # requests guesses ISO-8859-1 for text/event-stream
-            buf, flooded = "", False
+            buf, flooded, emitted = "", False, False
             for raw in r.iter_lines(decode_unicode=True):
                 if not raw or not raw.startswith("data:"):
                     continue
@@ -151,6 +162,7 @@ def _stream(model_list, messages, max_tokens, temperature):
                 out, buf = buf[:cut], buf[cut:]
                 out = re.sub(r"!{4,}", "", re.sub(r"</?think>", "", out))
                 if out:
+                    emitted = True
                     yield _sse({"delta": out})
                 if len(buf) >= 32 and set(buf) == {"!"}:
                     flooded = True
@@ -158,6 +170,8 @@ def _stream(model_list, messages, max_tokens, temperature):
             tail = re.sub(r"!{4,}", "", re.sub(r"</?think>", "", buf))
             if tail and not flooded:
                 yield _sse({"delta": tail})
+            if flooded and not emitted:
+                raise LLMError("pure '!' flood")  # whole response garbage -> next model
             yield _sse({"done": True, "model": model})
             return
         except Exception as e:
@@ -178,24 +192,39 @@ def health():
 
 
 @app.post("/api/analyze")
-async def analyze(file: UploadFile = File(None), text: str = Form(""),
+async def analyze(files: list[UploadFile] = File(None), text: str = Form(""),
                   language: str = Form("en")):
     lang = LANGUAGES.get(language, "English")
     content = [{"type": "text", "text": analyze_prompt(lang)}]
-    if file and file.filename:
-        data = await file.read()
-        if len(data) > 15 * 1024 * 1024:
-            return JSONResponse({"error": "Image too large (max 15MB)"}, 400)
+    uploads = [f for f in (files or []) if f and f.filename]
+    if uploads:
+        imgs, truncated = [], False
         try:
-            content.append({"type": "image_url",
-                            "image_url": {"url": _prep_image(data)}})
+            for f in uploads[:4]:
+                data = await f.read()
+                if len(data) > 15 * 1024 * 1024:
+                    return JSONResponse({"error": f"{f.filename} too large (max 15MB)"}, 400)
+                pages = _to_images(f.filename or "", data)
+                for p in pages:
+                    if len(imgs) >= 4:
+                        truncated = True
+                        break
+                    imgs.append(p)
         except Exception:
-            return JSONResponse({"error": "Could not read that image"}, 400)
+            return JSONResponse({"error": "Could not read that file (images or PDF only)"}, 400)
+        if not imgs:
+            return JSONResponse({"error": "No readable pages found"}, 400)
+        if len(uploads) > 1 or truncated:
+            content.append({"type": "text",
+                            "text": f"(This is a {len(imgs)}-page/multi-file document"
+                                    + (", later pages were cut off" if truncated else "")
+                                    + ". Treat all images as ONE document.)"})
+        content += [{"type": "image_url", "image_url": {"url": u}} for u in imgs]
     elif text.strip():
         content.append({"type": "text",
                         "text": f"\n\nDOCUMENT TEXT:\n{text.strip()[:20000]}"})
     else:
-        return JSONResponse({"error": "Provide an image or some text"}, 400)
+        return JSONResponse({"error": "Provide an image, PDF, or some text"}, 400)
 
     last = None
     for _ in range(2):  # retry once: JSON parse can fail if output floods/truncates
@@ -214,13 +243,15 @@ class ChatReq(BaseModel):
     context: dict
     messages: list
     language: str = "en"
+    mode: str = "qa"  # "qa" | "roleplay"
 
 
 @app.post("/api/chat")
 def chat(req: ChatReq):
     lang = LANGUAGES.get(req.language, "English")
     ctx = json.dumps(req.context, ensure_ascii=False)[:14000]
-    msgs = [{"role": "system", "content": chat_system(lang).format(context=ctx)}]
+    sysp = roleplay_system(lang) if req.mode == "roleplay" else chat_system(lang)
+    msgs = [{"role": "system", "content": sysp.format(context=ctx)}]
     for m in req.messages[-12:]:
         if m.get("role") in ("user", "assistant") and m.get("content"):
             msgs.append({"role": m["role"], "content": m["content"][:4000]})

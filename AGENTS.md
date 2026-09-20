@@ -42,7 +42,8 @@
 - **Llama 系模型被 gate**（`model_gated_needs_oauth`），需绑 HF 账号 → 一律用 Qwen/DeepSeek
 - **Cloudflare 会拦 Python 默认 UA**（error 1010）：requests/urllib 必须带自定义 `User-Agent`（见 `server.py` 的 `FEATHERLESS_HEADERS`）
 - 冷门模型首次调用有 ~30-90s 冷启动；可能返回 `capacity_exhausted` → 实现重试 + 模型降级
-- Qwen3 会输出 `<think>...</think>`：请求带 `chat_template_kwargs.enable_thinking=false`，并做防御性剥离
+- Qwen3 会输出 `<think>...</think>`：给 Qwen3 模型在最后一条 user 消息追加 `/no_think`（`_no_think()`）。**不要给非 Qwen3 模型传 `chat_template_kwargs`**——会触发 `!` token 洪泛
+- **上游偶发纯 `!` 洪泛**（token 0 失控）：流式层 `_emit_point` 挂起 `!` 尾巴，纯 flood 时整体降级到下一个模型；非流式 `_strip_think` 同样过滤
 
 ## 开发命令
 
@@ -80,6 +81,7 @@ README.md            # Devpost 提交用主文档
 - [x] 前端单页（上传→结果卡片→追问/起草，支持拖拽/拍照/粘贴文本/示例图）
 - [x] 示例文档生成（4 张 PIL 仿真文书）
 - [x] README + git 初始化
+- [x] 迭代 2：legitimacy 防骗卡、多文件+PDF(PyMuPDF)、截止倒计时+ICS 导出、🎭 电话彩排 roleplay、localStorage 历史+清单记忆、导出 md 简报、loading 秒表
 - [ ] 部署到公网（demo link 加分）或录 3 分钟演示视频
 - [ ] Devpost 提交页填写
 

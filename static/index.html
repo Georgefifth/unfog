@@ -24,6 +24,7 @@
     </div>
   </div>
   <div class="top-right">
+    <button id="history-btn" class="mini-btn" title="Recent documents">🕘</button>
     <label class="lang-label" for="lang">Explain in</label>
     <select id="lang">
       <option value="en" selected>English</option>
@@ -54,9 +55,9 @@
 
     <div id="dropzone" tabindex="0" role="button" aria-label="Upload a document image">
       <div class="dz-icon">📄</div>
-      <div class="dz-main">Drop a photo of the document</div>
-      <div class="dz-sub">or click to browse — phone photos work great</div>
-      <input type="file" id="file-input" accept="image/*" hidden>
+      <div class="dz-main">Drop a photo or PDF of the document</div>
+      <div class="dz-sub">or click to browse — multi-page OK (up to 4 pages)</div>
+      <input type="file" id="file-input" accept="image/*,.pdf" multiple hidden>
     </div>
 
     <div class="or-row"><span>or</span></div>
@@ -84,7 +85,7 @@
       <div class="loader-info">
         <div class="spinner"></div>
         <div id="loading-msg" class="loading-msg">Reading the document…</div>
-        <div class="loading-hint">Vision AI usually takes 5–30 seconds</div>
+        <div class="loading-hint"><span id="elapsed">0</span>s — vision AI usually takes 5–30s</div>
       </div>
     </div>
   </section>
@@ -101,6 +102,12 @@
       <h2 id="doc-title"></h2>
       <div id="doc-sender" class="doc-sender"></div>
       <div id="doc-eli5" class="eli5"></div>
+    </div>
+
+    <div class="card legit-card hidden" id="legit-card">
+      <h3>🛡️ Is this real?</h3>
+      <div id="legit-verdict" class="legit-verdict"></div>
+      <ul id="legit-signals" class="legit-signals"></ul>
     </div>
 
     <div class="card">
@@ -134,7 +141,10 @@
     </div>
 
     <div class="card">
-      <h3>✍️ Take action</h3>
+      <div class="card-head">
+        <h3>✍️ Take action</h3>
+        <button id="export-btn" class="mini-btn" title="Download summary brief">⬇ Export</button>
+      </div>
       <div id="action-btns" class="action-btns"></div>
       <div id="draft-out" class="draft-out hidden">
         <div class="draft-head">
@@ -146,7 +156,14 @@
     </div>
 
     <div class="card chat-card">
-      <h3>💬 Ask about this document</h3>
+      <div class="card-head">
+        <h3 id="chat-title">💬 Ask about this document</h3>
+        <button id="roleplay-btn" class="mini-btn" title="Rehearse the phone call">🎭 Practice the call</button>
+      </div>
+      <div id="roleplay-banner" class="roleplay-banner hidden">
+        🎭 Rehearsing: I'm playing the <b id="rp-org"></b> rep. Speak like a real call.
+        <button id="roleplay-exit" class="mini-btn">End call</button>
+      </div>
       <div id="chat-log" class="chat-log"></div>
       <form id="chat-form" class="chat-form">
         <input id="chat-input" placeholder="e.g. What happens if I just ignore this?" autocomplete="off">
@@ -166,6 +183,10 @@
   </section>
 
   <div id="error-banner" class="error-banner hidden"></div>
+  <div id="history-panel" class="history-panel hidden">
+    <div class="hist-head">Recent documents <button id="history-clear" class="mini-btn">Clear</button></div>
+    <ul id="history-list"></ul>
+  </div>
 </main>
 
 <footer>

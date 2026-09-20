@@ -1,6 +1,6 @@
 /* Unfog frontend */
 const $ = (s) => document.querySelector(s);
-const S = { context: null, messages: [], lastFile: null, lastText: "", busy: false };
+const S = { context: null, messages: [], lastFiles: [], lastText: "", busy: false, mode: "qa", docId: null };
 
 const VIEWS = { upload: $("#upload-view"), loading: $("#loading-view"), result: $("#result-view") };
 const lang = () => $("#lang").value;
@@ -65,30 +65,37 @@ async function streamPost(url, body, onDelta) {
 }
 
 /* ---------- analyze ---------- */
-const LOAD_MSGS = ["Reading the document…", "Decoding the jargon…", "Hunting for deadlines…", "Checking for traps…", "Writing your action plan…"];
+const LOAD_MSGS = ["Reading the document…", "Decoding the jargon…", "Hunting for deadlines…", "Checking for traps…", "Sniffing for scam signals…", "Writing your action plan…"];
 let loadTimer = null;
 
 function startLoading(previewUrl) {
   show("loading");
   $("#preview-img").src = previewUrl || "";
   $(".loader-img").style.display = previewUrl ? "" : "none";
+  const t0 = Date.now();
   let i = 0;
   $("#loading-msg").textContent = LOAD_MSGS[0];
+  $("#elapsed").textContent = "0";
   loadTimer = setInterval(() => {
-    i = (i + 1) % LOAD_MSGS.length;
-    $("#loading-msg").textContent = LOAD_MSGS[i];
-  }, 4000);
+    const s = Math.round((Date.now() - t0) / 1000);
+    $("#elapsed").textContent = s;
+    if (s % 4 === 0) {
+      i = (i + 1) % LOAD_MSGS.length;
+      $("#loading-msg").textContent = LOAD_MSGS[i];
+    }
+  }, 1000);
 }
 function stopLoading() { clearInterval(loadTimer); }
 
-async function analyze({ file, text }) {
+async function analyze({ files, text }) {
   if (S.busy) return;
   S.busy = true;
-  const preview = file ? URL.createObjectURL(file) : null;
+  const first = (files || [])[0];
+  const preview = first && first.type.startsWith("image/") ? URL.createObjectURL(first) : null;
   startLoading(preview);
   try {
     const fd = new FormData();
-    if (file) fd.append("file", file, file.name || "doc.png");
+    for (const f of files || []) fd.append("files", f, f.name || "doc.png");
     if (text) fd.append("text", text);
     fd.append("language", lang());
     const res = await fetch("/api/analyze", { method: "POST", body: fd });
@@ -96,7 +103,9 @@ async function analyze({ file, text }) {
     if (!res.ok || data.error) throw new Error(data.error || "Analysis failed");
     S.context = data;
     S.messages = [];
+    S.mode = "qa";
     renderResult(data);
+    saveHistory(data);
     show("result");
   } catch (e) {
     err(e.message);
@@ -119,6 +128,10 @@ const kindLabel = (k) => KIND_LABEL[k] || `✉️ ${k.replace(/_/g, " ")}`;
 const URG = { low: ["urg-low", "Low urgency"], medium: ["urg-medium", "Needs attention"], high: ["urg-high", "Urgent"] };
 
 function renderResult(a) {
+  S.docId = a._id || (a._id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  S.mode = "qa";
+  $("#roleplay-banner").classList.add("hidden");
+  $("#chat-title").textContent = "💬 Ask about this document";
   $("#doc-type").textContent = (a.doc_type || "document").replace(/_/g, " ");
   const [cls, label] = URG[a.urgency] || URG.medium;
   const u = $("#doc-urgency");
@@ -130,14 +143,34 @@ function renderResult(a) {
   $("#doc-eli5").textContent = a.eli5 || "";
   $("#doc-summary").textContent = a.summary || "";
 
+  const lg = a.legitimacy || {};
+  const legitCard = $("#legit-card");
+  if (lg.verdict && lg.verdict !== "unclear") {
+    const v = $("#legit-verdict");
+    v.textContent = lg.verdict === "likely_legit" ? "✓ Looks legitimate" : "⚠️ Suspicious — verify before paying";
+    v.className = `legit-verdict ${lg.verdict === "likely_legit" ? "ok" : "sus"}`;
+    $("#legit-signals").innerHTML = (lg.signals || []).map(s => `<li>${esc(s)}</li>`).join("");
+    legitCard.classList.remove("hidden");
+  } else {
+    legitCard.classList.add("hidden");
+  }
+
   const fl = $("#facts-list");
   fl.innerHTML = (a.key_facts || []).map(f =>
     `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join("") || "<dd>—</dd>";
 
   const dl = $("#deadlines-list");
-  dl.innerHTML = (a.deadlines || []).map(d =>
-    `<li><span class="d-date">${esc(d.date || "ASAP")}</span> — ${esc(d.what || "")}
-     ${d.consequence ? `<span class="d-cons">If missed: ${esc(d.consequence)}</span>` : ""}</li>`).join("");
+  dl.innerHTML = (a.deadlines || []).map((d, i) => {
+    const chip = daysChip(d.date);
+    return `<li>
+      <div class="d-top">
+        <span class="d-date">${esc(d.date || "ASAP")}</span>${chip}
+        ${d.date ? `<button class="mini-btn cal-btn" data-dl="${i}" title="Add to calendar">📅</button>` : ""}
+      </div>
+      ${esc(d.what || "")}
+      ${d.consequence ? `<span class="d-cons">If missed: ${esc(d.consequence)}</span>` : ""}
+    </li>`;
+  }).join("");
   $("#deadlines-card").style.display = (a.deadlines || []).length ? "" : "none";
 
   const gf = $("#flags-list");
@@ -160,10 +193,11 @@ function esc(s) {
 }
 
 function renderChecklist(items) {
+  const saved = loadChecks();
   const ul = $("#checklist");
   ul.innerHTML = items.map((it, i) => `
-    <li data-i="${i}">
-      <input type="checkbox" id="ck${i}">
+    <li data-i="${i}" class="${saved[i] ? "done" : ""}">
+      <input type="checkbox" id="ck${i}" ${saved[i] ? "checked" : ""}>
       <label for="ck${i}" class="step-text">${esc(it.step)}
         ${it.detail ? `<span class="step-detail">${esc(it.detail)}</span>` : ""}
       </label>
@@ -172,6 +206,7 @@ function renderChecklist(items) {
   ul.querySelectorAll("input").forEach(cb => cb.addEventListener("change", () => {
     cb.closest("li").classList.toggle("done", cb.checked);
     updateProgress();
+    saveChecks();
   }));
 }
 
@@ -180,6 +215,140 @@ function updateProgress() {
   const done = boxes.filter(b => b.checked).length;
   $("#check-progress").style.width = boxes.length ? `${(done / boxes.length) * 100}%` : "0";
 }
+
+/* ---------- deadlines: countdown + ICS ---------- */
+function daysChip(dateStr) {
+  const t = new Date(dateStr + "T00:00:00");
+  if (isNaN(t)) return "";
+  const days = Math.ceil((t - Date.now()) / 86400000);
+  const [txt, cls] = days < 0 ? [`${-days}d overdue`, "over"] :
+                     days === 0 ? ["today", "soon"] :
+                     days <= 7 ? [`${days}d left`, "soon"] : [`${days}d left`, "ok"];
+  return `<span class="d-chip ${cls}">${txt}</span>`;
+}
+
+function downloadIcs(d, title) {
+  const dt = (d.date || "").replaceAll("-", "");
+  if (!/^\d{8}$/.test(dt)) return;
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const body = [d.what || "", d.consequence ? `If missed: ${d.consequence}` : "", "— via Unfog"].join("\\n");
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Unfog//BunnieX//EN",
+    "BEGIN:VEVENT", `UID:${Date.now()}-${Math.random().toString(36).slice(2)}@unfog`,
+    `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${dt}`,
+    `SUMMARY:${(title || "Document deadline")} — ${d.what || "deadline"}`,
+    `DESCRIPTION:${body.replace(/[\r\n]/g, "\\n")}`,
+    "BEGIN:VALARM", "TRIGGER:-P2D", "ACTION:DISPLAY", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: "deadline.ics" });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+$("#deadlines-list").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-dl]");
+  if (b && S.context) downloadIcs(S.context.deadlines[+b.dataset.dl], S.context.title);
+});
+
+/* ---------- local history ---------- */
+const HKEY = "unfog_history";
+const hist = () => { try { return JSON.parse(localStorage.getItem(HKEY)) || []; } catch { return []; } };
+
+function saveHistory(a) {
+  try {
+    const h = hist().filter(x => x.id !== a._id);
+    h.unshift({ id: a._id, title: a.title, doc_type: a.doc_type, ts: Date.now(), a });
+    localStorage.setItem(HKEY, JSON.stringify(h.slice(0, 8)));
+  } catch {
+    try { // quota: retry without the bulky transcript
+      const slim = { ...a }; delete slim.raw_text;
+      const h = hist().filter(x => x.id !== a._id);
+      h.unshift({ id: a._id, title: a.title, doc_type: a.doc_type, ts: Date.now(), a: slim });
+      localStorage.setItem(HKEY, JSON.stringify(h.slice(0, 8)));
+    } catch { /* storage full/disabled — skip history */ }
+  }
+}
+
+function renderHistory() {
+  const h = hist();
+  $("#history-list").innerHTML = h.length ? h.map(x => `
+    <li data-id="${x.id}">
+      <span class="h-type">${esc((x.doc_type || "doc").replace(/_/g, " "))}</span>
+      <span class="h-title">${esc(x.title || "Untitled")}</span>
+      <span class="h-ts">${new Date(x.ts).toLocaleString()}</span>
+    </li>`).join("") : `<li class="h-empty">No documents yet</li>`;
+}
+
+$("#history-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  renderHistory();
+  $("#history-panel").classList.toggle("hidden");
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#history-panel") && !e.target.closest("#history-btn"))
+    $("#history-panel").classList.add("hidden");
+});
+$("#history-list").addEventListener("click", (e) => {
+  const li = e.target.closest("[data-id]");
+  if (!li) return;
+  const item = hist().find(x => x.id === li.dataset.id);
+  if (!item) return;
+  S.context = item.a;
+  S.messages = [];
+  renderResult(item.a);
+  $("#history-panel").classList.add("hidden");
+  show("result");
+});
+$("#history-clear").addEventListener("click", () => {
+  localStorage.removeItem(HKEY);
+  renderHistory();
+});
+
+/* ---------- export brief ---------- */
+$("#export-btn").addEventListener("click", () => {
+  const a = S.context;
+  if (!a) return;
+  const lines = [
+    `# ${a.title || "Document brief"}`, ``,
+    `**Type:** ${a.doc_type || "-"}  `, `**From:** ${a.sender || "-"}  `,
+    `**Urgency:** ${a.urgency || "-"} — ${a.urgency_reason || ""}`, ``,
+    `## In plain words`, a.summary || "", ``,
+    a.eli5 ? `**In one sentence:** ${a.eli5}` : "", ``,
+    `## Key facts`, ...(a.key_facts || []).map(f => `- **${f.label}:** ${f.value}`), ``,
+    `## Deadlines`, ...(a.deadlines || []).map(d =>
+      `- **${d.date || "ASAP"}** — ${d.what}${d.consequence ? ` (if missed: ${d.consequence})` : ""}`), ``,
+    `## Watch out`, ...(a.red_flags || []).map(f => `- **${f.flag}** — ${f.why}`), ``,
+    a.legitimacy?.verdict ? `## Legitimacy: ${a.legitimacy.verdict}` : "",
+    ...(a.legitimacy?.signals || []).map(s => `- ${s}`), ``,
+    `## Action checklist`, ...(a.checklist || []).map((c, i) => `${i + 1}. ${c.step}${c.detail ? ` — ${c.detail}` : ""}`),
+    ``, `---`, `Generated by Unfog · not legal/medical/financial advice`];
+  const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/markdown" }));
+  Object.assign(document.createElement("a"), { href: url, download: "unfog-brief.md" }).click();
+  URL.revokeObjectURL(url);
+});
+
+/* ---------- checklist persistence ---------- */
+function ckKey() { return `unfog_ck_${S.docId}`; }
+function loadChecks() { try { return JSON.parse(localStorage.getItem(ckKey())) || []; } catch { return []; } }
+function saveChecks() {
+  const arr = [...document.querySelectorAll("#checklist input")].map(b => b.checked ? 1 : 0);
+  try { localStorage.setItem(ckKey(), JSON.stringify(arr)); } catch { }
+}
+
+/* ---------- roleplay ---------- */
+function setRoleplay(on) {
+  S.mode = on ? "roleplay" : "qa";
+  $("#roleplay-banner").classList.toggle("hidden", !on);
+  $("#chat-title").textContent = on ? "🎭 Practice call" : "💬 Ask about this document";
+  $("#chat-log").innerHTML = "";
+  S.messages = [];
+  if (on) {
+    $("#rp-org").textContent = S.context?.sender || "the organization";
+    sendChat("(the phone rings — the rep picks up)", true);
+  }
+}
+$("#roleplay-btn").addEventListener("click", () => setRoleplay(true));
+$("#roleplay-exit").addEventListener("click", () => setRoleplay(false));
 
 /* ---------- draft (SSE) ---------- */
 $("#action-btns").addEventListener("click", async (e) => {
@@ -215,26 +384,29 @@ $("#copy-draft").addEventListener("click", () => {
 });
 
 /* ---------- chat ---------- */
-function addMsg(role, text) {
+function addMsg(role, text, hidden) {
   const div = document.createElement("div");
   div.className = `msg ${role}`;
   div.innerHTML = `<div class="bubble"></div>`;
   div.querySelector(".bubble").textContent = text;
+  if (hidden) div.style.display = "none";
   $("#chat-log").appendChild(div);
   div.scrollIntoView({ block: "nearest" });
   return div.querySelector(".bubble");
 }
 
-async function ask(q) {
+async function sendChat(q, hidden) {
   if (!q.trim() || S.busy || !S.context) return;
   S.messages.push({ role: "user", content: q });
-  addMsg("user", q);
+  if (!hidden) addMsg("user", q);
   const bub = addMsg("bot", "");
   bub.classList.add("streaming");
   let acc = "";
   try {
     S.busy = true;
-    await streamPost("/api/chat", { context: S.context, messages: S.messages, language: lang() }, (d) => {
+    await streamPost("/api/chat", {
+      context: S.context, messages: S.messages, language: lang(), mode: S.mode,
+    }, (d) => {
       acc += d;
       bub.innerHTML = md(acc);
       bub.parentElement.scrollIntoView({ block: "nearest" });
@@ -247,6 +419,7 @@ async function ask(q) {
     S.busy = false;
   }
 }
+const ask = (q) => sendChat(q, false);
 
 $("#chat-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -267,17 +440,17 @@ dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("d
 dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
 dz.addEventListener("drop", (e) => {
   e.preventDefault(); dz.classList.remove("dragover");
-  const f = e.dataTransfer.files[0];
-  if (f) { S.lastFile = f; S.lastText = ""; analyze({ file: f }); }
+  const files = [...e.dataTransfer.files];
+  if (files.length) { S.lastFiles = files; S.lastText = ""; analyze({ files }); }
 });
 $("#file-input").addEventListener("change", (e) => {
-  const f = e.target.files[0];
-  if (f) { S.lastFile = f; S.lastText = ""; analyze({ file: f }); }
+  const files = [...e.target.files];
+  if (files.length) { S.lastFiles = files; S.lastText = ""; analyze({ files }); }
 });
 $("#paste-btn").addEventListener("click", () => {
   const t = $("#paste-text").value.trim();
   if (!t) return err("Paste some text first");
-  S.lastText = t; S.lastFile = null;
+  S.lastText = t; S.lastFiles = [];
   analyze({ text: t });
 });
 document.querySelectorAll("[data-sample]").forEach(b =>
@@ -285,14 +458,14 @@ document.querySelectorAll("[data-sample]").forEach(b =>
     const res = await fetch(`/static/samples/${b.dataset.sample}`);
     const blob = await res.blob();
     const file = new File([blob], b.dataset.sample, { type: "image/png" });
-    S.lastFile = file; S.lastText = "";
-    analyze({ file });
+    S.lastFiles = [file]; S.lastText = "";
+    analyze({ files: [file] });
   }));
 
 /* language change → re-analyze current doc */
 $("#lang").addEventListener("change", () => {
   if (S.context && !S.busy) {
-    if (S.lastFile) analyze({ file: S.lastFile });
+    if (S.lastFiles.length) analyze({ files: S.lastFiles });
     else if (S.lastText) analyze({ text: S.lastText });
   }
 });

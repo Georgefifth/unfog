@@ -21,15 +21,18 @@ The stakes are real — missed deadlines, overpaid fees, unchallenged denials. A
 
 Unfog is a "paperwork decoder":
 
-1. **📸 Snap or drop a document** — a photo, scan, screenshot, or pasted text
+1. **📸 Snap or drop a document** — photo, scan, screenshot, **multi-page PDF**, or pasted text
 2. **📖 Plain-language summary** — what it actually says, plus a one-line ELI5
 3. **🔑 Key facts** — amounts, dates, reference numbers, structured
-4. **⏰ Deadlines** — what happens if you miss them
+4. **⏰ Deadlines** — what happens if you miss them, countdown chips, one-tap **calendar (.ics) export**
 5. **⚠️ Red flags** — hidden fees, auto-renewals, waived rights, suspicious charges
-6. **✅ Action checklist** — concrete next steps, check them off
-7. **✍️ Action layer** — one tap drafts a **dispute letter**, **reply**, **phone script**, or **questions to ask**, pre-filled with the real facts from your document
-8. **💬 Grounded Q&A** — ask anything ("Is this a scam?", "What if I ignore it?") — answers quote your document, not generic advice
-9. **🌍 12 languages** — read a Japanese hospital bill in English, or a US lease in Chinese
+6. **🛡️ Scam check** — is this document even real? Flags gift-card demands, arrest threats, fake URLs
+7. **✅ Action checklist** — concrete next steps, check them off (progress remembered)
+8. **✍️ Action layer** — one tap drafts a **dispute letter**, **appeal**, **reply**, **phone script**, or **questions to ask**, pre-filled with the real facts from your document
+9. **🎭 Practice the call** — rehearse the scary phone call with an AI playing the organization's rep
+10. **💬 Grounded Q&A** — ask anything ("Is this a scam?", "What if I ignore it?") — answers quote your document, not generic advice
+11. **🌍 12 languages** — read a Japanese hospital bill in English, or a US lease in Chinese
+12. **🕘 Local history** — recent documents stay in your browser only; **export a brief** as markdown
 
 **Privacy by design:** documents live in memory only — nothing is stored or logged.
 
@@ -64,17 +67,20 @@ photo/text ──► FastAPI ──► Qwen3-VL (vision) ──► structured JS
 
 | Layer | Tech |
 |---|---|
-| AI inference | Featherless AI API — Qwen3-VL-30B (vision), Qwen2.5-72B (text) |
+| AI inference | Featherless AI API — Qwen3-VL-30B (vision), Qwen2.5-72B + fallbacks (text) |
 | Backend | Python 3.12, FastAPI, Server-Sent Events |
+| PDF | PyMuPDF — rasterizes pages for the vision model |
 | Frontend | Vanilla HTML/CSS/JS — zero build step, mobile-friendly |
 | Images | Pillow preprocessing (auto-resize/re-encode) |
 
 ## Why it's innovative
 
-- **Not another summarizer**: the action layer (dispute letters, phone scripts, checklists) turns understanding into *doing* — closing the loop from "what does this say?" to "it's handled."
-- **Document-agnostic**: any scary paper, any language — one model pipeline handles a parking ticket and a Japanese medical form equally well.
+- **Not another summarizer**: the action layer (dispute letters, phone scripts, checklists, calendar export) turns understanding into *doing* — closing the loop from "what does this say?" to "it's handled."
+- **Trust built in**: the legitimacy check answers the question nobody else does — "is this even real?" — before you pay a fake ticket.
+- **Rehearsal mode**: practicing the phone call with a realistic, bureaucratic AI rep is the feature people remember.
+- **Document-agnostic**: any scary paper, any language, multiple pages — one pipeline handles a parking ticket and a Japanese medical form equally well.
 - **Grounded & honest**: answers cite your document and admit when it doesn't say — critical for documents where being wrong costs money.
-- **Zero-install, zero-storage**: works on a phone camera, forgets everything after.
+- **Zero-install, zero-storage**: works on a phone camera, forgets everything after; history lives in your browser.
 
 ## Impact & future scope
 
