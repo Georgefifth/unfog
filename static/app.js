@@ -445,10 +445,32 @@ function speak(text) {
 /* ---------- draft (SSE) ---------- */
 async function runDraft(kind, refine = "") {
   const out = $("#draft-out"), body = $("#draft-body");
+  // demo mode: fake-stream a baked real draft for deterministic timing
+  if (S.demoDrafts?.[kind] && !refine) {
+    $("#draft-title").textContent = kindLabel(kind);
+    out.classList.remove("hidden");
+    body.classList.add("streaming");
+    body.innerHTML = '<div class="gen-hint">✍️ Generating with the model…</div>';
+    S.busy = true;
+    const txt = S.demoDrafts[kind];
+    let i = 0;
+    await new Promise(res => {
+      const t = setInterval(() => {
+        i += 14;
+        if (txt.slice(0, i).trim()) body.innerHTML = md(txt.slice(0, i));
+        out.scrollIntoView({ block: "nearest" });
+        if (i >= txt.length) { clearInterval(t); res(); }
+      }, 40);
+    });
+    S.lastKind = kind; S.lastDraft = txt;
+    body.classList.remove("streaming");
+    S.busy = false;
+    return;
+  }
   $("#draft-title").textContent = kindLabel(kind) + (refine ? " · revised" : "");
   out.classList.remove("hidden");
   body.classList.add("streaming");
-  body.textContent = "";
+  body.innerHTML = '<div class="gen-hint">✍️ Generating with the model — first tokens can take a few seconds…</div>';
   let acc = "";
   try {
     S.busy = true;
@@ -457,7 +479,7 @@ async function runDraft(kind, refine = "") {
       refine, previous: refine ? S.lastDraft : "",
     }, (d) => {
       acc += d;
-      body.innerHTML = md(acc);
+      if (acc.trim()) body.innerHTML = md(acc);
       out.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
     S.lastKind = kind;
@@ -515,6 +537,7 @@ async function sendChat(q, hidden) {
   }
   const bub = addMsg("bot", "");
   bub.classList.add("streaming");
+  bub.innerHTML = '<span class="gen-hint small">thinking…</span>';
   let acc = "";
   try {
     S.busy = true;
@@ -522,7 +545,7 @@ async function sendChat(q, hidden) {
       context: S.context, messages: S.messages, language: lang(), mode: S.mode,
     }, (d) => {
       acc += d;
-      bub.innerHTML = md(acc);
+      if (acc.trim()) bub.innerHTML = md(acc);
       bub.parentElement.scrollIntoView({ block: "nearest" });
     });
     S.messages.push({ role: "assistant", content: acc });
@@ -635,6 +658,8 @@ if (demoKey && DEMO_MAP[demoKey]) {
       S.context = a;
       fetch(`/static/demo_cache/${demoKey}_rp.json`).then(r => r.json())
         .then(rp => { S.demoGreeting = rp.greeting || null; }).catch(() => {});
+      fetch(`/static/demo_cache/${demoKey}_drafts.json`).then(r => r.json())
+        .then(dr => { S.demoDrafts = dr; }).catch(() => {});
       renderResult(a);
       show("result");
     } catch (e) { /* fall back to normal upload view */ }

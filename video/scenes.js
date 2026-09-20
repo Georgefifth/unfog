@@ -63,10 +63,11 @@ module.exports = [
       { type: "scrollIntoView", sel: "#action-btns" },
       { type: "click", sel: "#action-btns [data-kind]" },
       { type: "waitFor", sel: "#draft-out:not(.hidden)", timeout: 15000 },
-      { type: "waitFor", sel: "#draft-body:not(:empty)", timeout: 90000 },
+      { type: "waitFor", sel: "#draft-body p", timeout: 90000 },
       { type: "wait", ms: 9000 },
     ],
     vo: "Then it acts — drafting a dispute letter pre-filled with every real number from your bill.",
+    caption: "Drafting a dispute letter — real output from Qwen2.5-72B via Featherless AI",
   },
   {
     name: "roleplay",
